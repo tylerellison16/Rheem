@@ -1,0 +1,228 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Inventory Management System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        table, th, td {
+            border: 1px solid #ccc;
+        }
+
+        th, td {
+            padding: 8px;
+            text-align: left;
+        }
+
+        .form-container {
+            margin-top: 20px;
+        }
+
+        .feedback {
+            margin-top: 10px;
+            color: green;
+        }
+
+        .error {
+            margin-top: 10px;
+            color: red;
+        }
+    </style>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+
+    <h1>Inventory Management</h1>
+
+    <!-- Feedback messages -->
+    <div id="message"></div>
+
+    <!-- Table for displaying inventory items -->
+    <table id="inventoryTable">
+        <thead>
+            <tr>
+                <th>InventoryID</th>
+                <th>Name</th>
+                <th>Description</th>
+                <th>Quantity</th>
+                <th>Price</th>
+                <th>Product Category</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Rows will be populated via jQuery -->
+        </tbody>
+    </table>
+
+    <!-- Form for creating/updating inventory items -->
+    <div class="form-container">
+        <h2 id="formTitle">Add New Inventory Item</h2>
+        <form id="inventoryForm">
+            <input type="hidden" id="inventoryID" name="inventoryID" value="0">
+            <div>
+                <label for="name">Name:</label>
+                <input type="text" id="name" name="name" required />
+            </div>
+            <div>
+                <label for="description">Description:</label>
+                <input type="text" id="description" name="description" />
+            </div>
+            <div>
+                <label for="quantity">Quantity:</label>
+                <input type="number" id="quantity" name="quantity" required />
+            </div>
+            <div>
+                <label for="price">Price:</label>
+                <input type="number" step="0.01" id="price" name="price" required />
+            </div>
+            <div>
+                <label for="productCategory">Product Category:</label>
+                <input type="text" id="productCategory" name="productCategory" />
+            </div>
+            <button type="submit" id="submitButton">Submit</button>
+            <button type="button" id="cancelButton" style="display: none;">Cancel</button>
+        </form>
+    </div>
+
+    <script>
+    const apiBaseUrl = '/api/Inventory';
+
+    // Function to load and display all inventory items
+    function loadInventory(filter = '') {
+        $.ajax({
+            url: apiBaseUrl,
+            type: 'GET',
+            data: { filter: filter },
+            success: function (data) {
+                let rows = '';
+                $.each(data, function (i, item) {
+                    rows += `<tr>
+                        <td>${item.inventoryID}</td>
+                        <td>${item.name}</td>
+                        <td>${item.description || ''}</td>
+                        <td>${item.quantity}</td>
+                        <td>${item.price}</td>
+                        <td>${item.productCategory || ''}</td>
+                        <td>
+                            <button onclick="editItem(${item.inventoryID})">Edit</button>
+                            <button onclick="deleteItem(${item.inventoryID})">Delete</button>
+                        </td>
+                    </tr>`;
+                });
+                $('#inventoryTable tbody').html(rows);
+            },
+            error: function (xhr) {
+                $('#message').html(`<div class="error">Error fetching items: ${xhr.responseText}</div>`);
+            }
+        });
+    }
+
+    // Function to add or update an inventory item
+    $('#inventoryForm').submit(function (e) {
+        e.preventDefault();
+        const item = {
+            InventoryID: $('#inventoryID').val(),
+            Name: $('#name').val(),
+            Description: $('#description').val(),
+            Quantity: parseInt($('#quantity').val()),
+            Price: parseFloat($('#price').val()),
+            ProductCategory: $('#productCategory').val()
+        };
+
+        // Determine if this is a create or update operation
+        const method = item.InventoryID == 0 ? 'POST' : 'PUT';
+        let url = apiBaseUrl;
+        if (method === 'PUT') {
+            url += '/' + item.InventoryID;
+        }
+
+        $.ajax({
+            url: url,
+            type: method,
+            contentType: 'application/json',
+            data: JSON.stringify(item),
+            success: function (data) {
+                $('#message').html(`<div class="feedback">Operation successful.</div>`);
+                resetForm();
+                loadInventory();
+            },
+            error: function (xhr) {
+                $('#message').html(`<div class="error">Error: ${xhr.responseText}</div>`);
+            }
+        });
+    });
+
+    // Function to load an item into the form for editing
+    function editItem(id) {
+        $.ajax({
+            url: apiBaseUrl + '/' + id,
+            type: 'GET',
+            success: function (item) {
+                $('#inventoryID').val(item.inventoryID);
+                $('#name').val(item.name);
+                $('#description').val(item.description);
+                $('#quantity').val(item.quantity);
+                $('#price').val(item.price);
+                $('#productCategory').val(item.productCategory);
+                $('#formTitle').text('Edit Inventory Item');
+                $('#cancelButton').show();
+            },
+            error: function (xhr) {
+                $('#message').html(`<div class="error">Error fetching item: ${xhr.responseText}</div>`);
+            }
+        });
+    }
+
+    // Function to delete an inventory item
+    function deleteItem(id) {
+        if (confirm("Are you sure you want to delete this item?")) {
+            $.ajax({
+                url: apiBaseUrl + '/' + id,
+                type: 'DELETE',
+                success: function () {
+                    $('#message').html(`<div class="feedback">Item deleted successfully.</div>`);
+                    loadInventory();
+                },
+                error: function (xhr) {
+                    $('#message').html(`<div class="error">Error deleting item: ${xhr.responseText}</div>`);
+                }
+            });
+        }
+    }
+
+    // Reset form to default (for adding new items)
+    function resetForm() {
+        $('#inventoryID').val(0);
+        $('#name').val('');
+        $('#description').val('');
+        $('#quantity').val('');
+        $('#price').val('');
+        $('#productCategory').val('');
+        $('#formTitle').text('Add New Inventory Item');
+        $('#cancelButton').hide();
+    }
+
+    // Cancel edit operation
+    $('#cancelButton').click(function () {
+        resetForm();
+    });
+
+    // Initial load
+    $(document).ready(function () {
+        loadInventory();
+    });
+    </script>
+
+</body>
+</html>
